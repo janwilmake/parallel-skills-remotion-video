@@ -1,13 +1,20 @@
 import { ThreeCanvas } from "@remotion/three";
-import React, { useMemo, useEffect } from "react";
+import { loadFont } from "@remotion/google-fonts/FiraCode";
+import React, { useMemo, useEffect, useState } from "react";
 import {
   AbsoluteFill,
+  continueRender,
+  delayRender,
   interpolate,
   spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
 import * as THREE from "three";
+
+const { fontFamily, waitUntilDone } = loadFont();
+
+const FONT_FAMILY = fontFamily;
 
 const COMMAND_LINE = { text: "$ npx skills add parallel-web/skills", delay: 0 };
 const BANNER_DELAY = 50;
@@ -33,6 +40,8 @@ type SkillsBanner3DProps = {
 
 const SkillsBanner3D: React.FC<SkillsBanner3DProps> = ({ delay, yPosition }) => {
   const frame = useCurrentFrame();
+  const [fontLoaded, setFontLoaded] = useState(false);
+  const [handle] = useState(() => delayRender("Loading fonts for banner"));
 
   const opacity = interpolate(frame - delay, [0, 15], [0, 1], {
     extrapolateLeft: "clamp",
@@ -54,12 +63,25 @@ const SkillsBanner3D: React.FC<SkillsBanner3DProps> = ({ delay, yPosition }) => 
   }, [canvas]);
 
   useEffect(() => {
+    waitUntilDone()
+      .then(() => {
+        setFontLoaded(true);
+      })
+      .catch((err) => {
+        console.error("Font loading failed:", err);
+        setFontLoaded(true); // Continue with fallback font
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!fontLoaded) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = `bold 48px "SF Mono", "Monaco", "Consolas", monospace`;
-    ctx.fillStyle = "#a0a0a0";
+    ctx.font = `bold 48px ${FONT_FAMILY}`;
+    ctx.fillStyle = "#1d1b16";
     ctx.textBaseline = "top";
 
     SKILLS_BANNER.forEach((line, index) => {
@@ -67,7 +89,8 @@ const SkillsBanner3D: React.FC<SkillsBanner3DProps> = ({ delay, yPosition }) => 
     });
 
     texture.needsUpdate = true;
-  }, [canvas, texture]);
+    continueRender(handle);
+  }, [canvas, texture, fontLoaded, handle]);
 
   if (frame < delay) return null;
 
@@ -100,6 +123,8 @@ const TerminalTextLine3D: React.FC<TerminalTextLine3DProps> = ({
   typeEffect = true,
 }) => {
   const frame = useCurrentFrame();
+  const [fontLoaded, setFontLoaded] = useState(false);
+  const [handle] = useState(() => delayRender("Loading fonts for text"));
 
   const visibleChars = typeEffect
     ? Math.floor(
@@ -124,10 +149,10 @@ const TerminalTextLine3D: React.FC<TerminalTextLine3DProps> = ({
     Math.floor((frame - delay) / 8) % 2 === 0;
 
   const color = text.startsWith("$")
-    ? "#58a6ff"
+    ? "#fb631b"
     : text.startsWith("✓") || text.startsWith("◇")
-      ? "#3fb950"
-      : "#e6edf3";
+      ? "#fb631b"
+      : "#1d1b16";
 
   const canvas = useMemo(() => {
     const c = document.createElement("canvas");
@@ -144,17 +169,32 @@ const TerminalTextLine3D: React.FC<TerminalTextLine3DProps> = ({
   }, [canvas]);
 
   useEffect(() => {
+    waitUntilDone()
+      .then(() => {
+        setFontLoaded(true);
+        continueRender(handle);
+      })
+      .catch((err) => {
+        console.error("Font loading failed:", err);
+        setFontLoaded(true);
+        continueRender(handle);
+      });
+  }, [handle]);
+
+  useEffect(() => {
+    if (!fontLoaded) return;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.font = `bold 72px "SF Mono", "Monaco", "Consolas", monospace`;
+    ctx.font = `bold 72px ${FONT_FAMILY}`;
     ctx.fillStyle = color;
     ctx.textBaseline = "middle";
     ctx.fillText(displayText + (cursorVisible ? "█" : ""), 80, canvas.height / 2);
 
     texture.needsUpdate = true;
-  }, [canvas, texture, displayText, cursorVisible, color]);
+  }, [canvas, texture, displayText, cursorVisible, color, fontLoaded]);
 
   if (frame < delay) return null;
 
@@ -241,17 +281,17 @@ const TerminalWithText: React.FC<TerminalWithTextProps> = () => {
       {/* Screen inset/recess */}
       <mesh position={[0, 0, 0.35]}>
         <boxGeometry args={[17.5, 9.5, 0.15]} />
-        <meshStandardMaterial color="#0a0a12" metalness={0.2} roughness={0.8} />
+        <meshStandardMaterial color="#d8d0bf" metalness={0.2} roughness={0.8} />
       </mesh>
 
       {/* Screen surface */}
       <mesh position={[0, 0, 0.44]}>
         <planeGeometry args={[17, 9]} />
         <meshStandardMaterial
-          color="#0d1117"
+          color="#fcfcfa"
           metalness={0.1}
           roughness={0.1}
-          emissive="#0d1117"
+          emissive="#fcfcfa"
           emissiveIntensity={0.1}
         />
       </mesh>
@@ -259,13 +299,13 @@ const TerminalWithText: React.FC<TerminalWithTextProps> = () => {
       {/* Screen edge glow */}
       <mesh position={[0, 0, 0.43]}>
         <planeGeometry args={[17.2, 9.2]} />
-        <meshBasicMaterial color="#1a2a3a" transparent opacity={0.3} />
+        <meshBasicMaterial color="#d8d0bf" transparent opacity={0.3} />
       </mesh>
 
       {/* Title bar */}
       <mesh position={[0, 4.05, 0.45]}>
         <planeGeometry args={[17, 0.8]} />
-        <meshStandardMaterial color="#161b22" />
+        <meshStandardMaterial color="#d8d0bf" />
       </mesh>
 
       {/* Window buttons */}
@@ -346,8 +386,7 @@ export const Terminal3D: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        background:
-          "linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0f0f23 100%)",
+        background: "#fcfcfa",
       }}
     >
       <ThreeCanvas width={width} height={height}>
